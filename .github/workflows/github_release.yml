@@ -37,7 +37,7 @@ jobs:
       - name: Convert to Markdown
         uses: docker://pandoc/core:3.1
         with:
-          args: "--from rst --to markdown_github --no-highlight relnotes.rst -o relnotes.md"
+          args: "--from rst --to gfm --no-highlight relnotes.rst -o relnotes.md"
 
       - name: Debug
         run: |
