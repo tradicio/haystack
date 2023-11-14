@@ -338,6 +338,7 @@ class AdaptiveModel(nn.Module, BaseAdaptiveModel):
         :return: AdaptiveModel
         """
 
+        kwargs_copy = copy.deepcopy(kwargs)
         lm = get_language_model(
             model_name_or_path, revision=revision, use_auth_token=use_auth_token, model_kwargs=kwargs
         )
@@ -354,7 +355,7 @@ class AdaptiveModel(nn.Module, BaseAdaptiveModel):
 
         if task_type == "question_answering":
             ph = QuestionAnsweringHead.load(
-                model_name_or_path, revision=revision, use_auth_token=use_auth_token, **kwargs
+                model_name_or_path, revision=revision, use_auth_token=use_auth_token, **kwargs_copy
             )
             adaptive_model = cls(
                 language_model=lm,
@@ -509,28 +510,22 @@ class AdaptiveModel(nn.Module, BaseAdaptiveModel):
             sequence_output, pooled_output, attentions = output_tuple
         else:
             sequence_output, pooled_output = output_tuple
-        # Run forward pass of (multiple) prediction heads using the output from above
-        all_logits = []
-        if len(self.prediction_heads) > 0:
-            for head, lm_out in zip(self.prediction_heads, self.lm_output_types):
-                # Choose relevant vectors from LM as output and perform dropout
-                if lm_out == "per_token":
-                    output = self.dropout(sequence_output)
-                elif lm_out == "per_sequence" or lm_out == "per_sequence_continuous":
-                    output = self.dropout(pooled_output)
-                elif (
-                    lm_out == "per_token_squad"
-                ):  # we need a per_token_squad because of variable metric computation later on...
-                    output = self.dropout(sequence_output)
-                else:
-                    raise ValueError("Unknown extraction strategy from language model: {}".format(lm_out))
 
-                # Do the actual forward pass of a single head
-                logits = head(output)
-                all_logits.append(logits)
+        # Run forward pass of prediction head using the output from above
+        all_logits = []
+        head = self.prediction_heads[0]
+        lm_out = self.lm_output_types[0]
+        # Choose relevant vectors from LM as output and perform dropout
+        if lm_out == "per_token" or lm_out == "per_token_squad":
+            output = sequence_output
+        elif lm_out == "per_sequence" or lm_out == "per_sequence_continuous":
+            output = pooled_output
         else:
-            # just return LM output (e.g. useful for extracting embeddings at inference time)
-            all_logits.append((sequence_output, pooled_output))
+            raise ValueError("Unknown extraction strategy from language model: {}".format(lm_out))
+
+        # Do the actual forward pass of a single head
+        logits = head(output)
+        all_logits.append(logits)
 
         if output_hidden_states and output_attentions:
             return all_logits, hidden_states, attentions
