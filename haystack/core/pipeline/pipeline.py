@@ -237,7 +237,7 @@ class Pipeline:
             name, instance=instance, input_sockets=input_sockets, output_sockets=output_sockets, visits=0
         )
 
-    def connect(self, connect_from: str, connect_to: str) -> None:
+    def connect(self, connect_from: Union[str, OutputSocket], connect_to: Union[str, InputSocket]) -> None:
         """
         Connects two components together. All components to connect must exist in the pipeline.
         If connecting to an component that has several output connections, specify the inputs and output names as
@@ -256,6 +256,22 @@ class Pipeline:
             PipelineConnectError: if the two components cannot be connected (for example if one of the components is
                 not present in the pipeline, or the connections don't match by type, and so on).
         """
+        if isinstance(connect_from, OutputSocket) and isinstance(connect_to, InputSocket):
+            component_from_name = ""
+            component_to_name = ""
+            for name, data in self.graph.nodes(data=True):
+                instance = data["instance"]
+                if instance == connect_from.component:
+                    component_from_name = name
+                if instance == connect_to.component:
+                    component_to_name = name
+                if component_from_name and component_to_name:
+                    break
+
+            # If the name of the socket is not given, use the socket's name
+            connect_from = f"{component_from_name}.{connect_from.name}"
+            connect_to = f"{component_to_name}.{connect_to.name}"
+
         # Edges may be named explicitly by passing 'node_name.edge_name' to connect().
         sender, sender_socket_name = parse_connect_string(connect_from)
         receiver, receiver_socket_name = parse_connect_string(connect_to)
