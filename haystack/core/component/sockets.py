@@ -22,6 +22,7 @@ class InputSocket:
     default_value: Any = _empty
     is_variadic: bool = field(init=False)
     senders: List[str] = field(default_factory=list)
+    component = None
 
     @property
     def is_mandatory(self):
@@ -56,3 +57,4 @@ class OutputSocket:
     name: str
     type: type
     receivers: List[str] = field(default_factory=list)
+    component = None

@@ -159,6 +159,7 @@ class ComponentMeta(type):
             if not hasattr(instance, "outputs"):
                 instance.outputs = Outputs()
             for name, socket in instance.__canals_output__.items():
+                socket.component = instance
                 setattr(instance.outputs, name, socket)
 
         # Create the sockets if set_input_types() wasn't called in the constructor.
@@ -176,7 +177,8 @@ class ComponentMeta(type):
                 if run_signature.parameters[param].default != inspect.Parameter.empty:
                     socket_kwargs["default_value"] = run_signature.parameters[param].default
                 instance.__canals_input__[param] = InputSocket(**socket_kwargs)
-                setattr(instance.inputs, param, socket)
+                instance.__canals_input__[param].component = instance
+                setattr(instance.inputs, param, instance.__canals_input__[param])
 
         return instance
 
@@ -245,6 +247,7 @@ class _Component:
         if not hasattr(instance, "inputs"):
             instance.inputs = Inputs()
         for name, socket in instance.__canals_input__.items():
+            socket.component = instance
             setattr(instance.inputs, name, socket)
 
     def set_output_types(self, instance, **types):
@@ -271,6 +274,7 @@ class _Component:
         if not hasattr(instance, "outputs"):
             instance.outputs = Outputs()
         for name, socket in instance.__canals_output__.items():
+            socket.component = instance
             setattr(instance.outputs, name, socket)
 
     def output_types(self, **types):
