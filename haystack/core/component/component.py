@@ -80,6 +80,30 @@ from haystack.core.errors import ComponentError
 logger = logging.getLogger(__name__)
 
 
+class Inputs:
+    def __repr__(self) -> str:
+        res = ["Component Inputs:"]
+        for field in dir(self):
+            if field.startswith("__"):
+                continue
+            field_type = getattr(self, field).type
+            res.append(f"    {field}: {field_type}")
+
+        return "\n".join(res)
+
+
+class Outputs:
+    def __repr__(self) -> str:
+        res = ["Component Outputs:"]
+        for field in dir(self):
+            if field.startswith("__"):
+                continue
+            field_type = getattr(self, field).type
+            res.append(f"    {field}: {field_type}")
+
+        return "\n".join(res)
+
+
 @runtime_checkable
 class Component(Protocol):
     """
@@ -132,11 +156,19 @@ class ComponentMeta(type):
             # We deepcopy the content of the cache to transfer ownership from the class method
             # to the actual instance, so that different instances of the same class won't share this data.
             instance.__canals_output__ = deepcopy(getattr(instance.run, "_output_types_cache", {}))
+            if not hasattr(instance, "outputs"):
+                instance.outputs = Outputs()
+            for name, socket in instance.__canals_output__.items():
+                setattr(instance.outputs, name, socket)
 
         # Create the sockets if set_input_types() wasn't called in the constructor.
         # If it was called and there are some parameters also in the `run()` method, these take precedence.
         if not hasattr(instance, "__canals_input__"):
             instance.__canals_input__ = {}
+
+        if not hasattr(instance, "inputs"):
+            instance.inputs = Inputs()
+
         run_signature = inspect.signature(getattr(cls, "run"))
         for param in list(run_signature.parameters)[1:]:  # First is 'self' and it doesn't matter.
             if run_signature.parameters[param].kind == inspect.Parameter.POSITIONAL_OR_KEYWORD:  # ignore `**kwargs`
@@ -144,6 +176,8 @@ class ComponentMeta(type):
                 if run_signature.parameters[param].default != inspect.Parameter.empty:
                     socket_kwargs["default_value"] = run_signature.parameters[param].default
                 instance.__canals_input__[param] = InputSocket(**socket_kwargs)
+                setattr(instance.inputs, param, socket)
+
         return instance
 
 
@@ -208,6 +242,10 @@ class _Component:
 
         """
         instance.__canals_input__ = {name: InputSocket(name=name, type=type_) for name, type_ in types.items()}
+        if not hasattr(instance, "inputs"):
+            instance.inputs = Inputs()
+        for name, socket in instance.__canals_input__.items():
+            setattr(instance.inputs, name, socket)
 
     def set_output_types(self, instance, **types):
         """
@@ -230,6 +268,10 @@ class _Component:
         ```
         """
         instance.__canals_output__ = {name: OutputSocket(name=name, type=type_) for name, type_ in types.items()}
+        if not hasattr(instance, "outputs"):
+            instance.outputs = Outputs()
+        for name, socket in instance.__canals_output__.items():
+            setattr(instance.outputs, name, socket)
 
     def output_types(self, **types):
         """
